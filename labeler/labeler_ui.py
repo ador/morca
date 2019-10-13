@@ -1,7 +1,9 @@
 from tkinter import *
+from tkinter import messagebox
 from PIL import Image, ImageTk
 
 from labeler_helper import word_pos_finder
+
 
 # create the main window
 root = Tk()
@@ -75,15 +77,23 @@ class Labeler:
         )
 
     def locate_words(self):
+        text_from_entry = self.entry.get().strip()
+        words_entered = text_from_entry.split(" ")
         words_xmin_xmax_list, new_img = word_pos_finder(
             self.line_img, underline_in_img=True
         )
-        print("found words: ")
-        print(words_xmin_xmax_list)
         self.line_img = new_img
         self.ph_img = ImageTk.PhotoImage(self.line_img)
         self.img_label.configure(image=self.ph_img)
         self.img_label.image = self.ph_img
+        if len(words_xmin_xmax_list) != len(words_entered): 
+            mgbox = messagebox.showinfo(
+                "Ooops",
+                "Something is fishy!\n" +
+                "Found words in image: {} vs typed in: {}".format(
+                    len(words_xmin_xmax_list), len(words_entered)
+                )
+            )
 
 
 my_menu = MyMenu(root)
