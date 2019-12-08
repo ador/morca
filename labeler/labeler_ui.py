@@ -1,8 +1,10 @@
+import random
+
 from tkinter import *
 from tkinter import messagebox
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageTk
 
-from labeler_helper import word_pos_finder
+from labeler_helper import locate_chars
 
 
 # create the main window
@@ -10,6 +12,8 @@ root = Tk()
 root.title("Gimme Labels!")	
 root.geometry("930x300")
 
+
+CHAR_WIDTH = 14
 
 class MyMenu:
     def __init__(self, root_element):
@@ -39,7 +43,7 @@ class Labeler:
     def __init__(self, root_element):
         self.frame = Frame(root_element)
         # TODO image path should come from clicking "Open" menu item
-        in_img_file_path = "../test_data/20191004-211826_L7.png"
+        in_img_file_path = "../line_img/20191004-211826_L9.png"
         # we need a PIL image object for char detection
         self.line_img = Image.open(in_img_file_path)
         # and a PhotoImage object to show on GUI
@@ -53,7 +57,8 @@ class Labeler:
         self.entry.focus_set()
         self.entry.pack()
         self.print_button = Button(
-            self.frame, text="Auto-locate letters", command=self.locate_words
+            self.frame, text="Auto-locate letters",
+            command=self.auto_locate_chars
         )
         self.print_button.pack()
         self.counter = 0  # just for testing how things work
@@ -70,30 +75,36 @@ class Labeler:
         print("click was at {} {}".format(click_x, click_y))
 
     def keyhandler(self, event):
-        print("key: {}".format(event.char))
         self.counter += 1
         self.cnt_label.config(
             text="Saved train examples: {}".format(self.counter)
         )
 
-    def locate_words(self):
-        text_from_entry = self.entry.get().strip()
-        words_entered = text_from_entry.split(" ")
-        words_xmin_xmax_list, new_img = word_pos_finder(
-            self.line_img, underline_in_img=True
-        )
-        self.line_img = new_img
-        self.ph_img = ImageTk.PhotoImage(self.line_img)
-        self.img_label.configure(image=self.ph_img)
-        self.img_label.image = self.ph_img
-        if len(words_xmin_xmax_list) != len(words_entered): 
+    def auto_locate_chars(self):
+        text_entered = self.entry.get().strip()
+        image = self.line_img
+        # a list of tuples: (character, x_pos) ias (char, int)
+        char_locations = locate_chars(image, text_entered)
+        if not char_locations:
             mgbox = messagebox.showinfo(
                 "Ooops",
                 "Something is fishy!\n" +
-                "Found words in image: {} vs typed in: {}".format(
-                    len(words_xmin_xmax_list), len(words_entered)
+                "Found words in image does not match the typed in text!"
+        )
+        else:
+            # update the image shown with the one that locates words
+            # first step: draw rectangles on line_img
+            draw = ImageDraw.Draw(self.line_img)
+            for char_loc in char_locations:
+                draw.rectangle(
+                    [char_loc[1] - 2, 1 + random.randint(1, 8),  # x0 y0
+                    char_loc[1] + CHAR_WIDTH, 39 - random.randint(1, 8)],  #  x1 y1
                 )
-            )
+
+            # then update the PhotoImage object on hte shwn label:
+            self.ph_img = ImageTk.PhotoImage(self.line_img)
+            self.img_label.configure(image=self.ph_img)
+            self.img_label.image = self.ph_img
 
 
 my_menu = MyMenu(root)

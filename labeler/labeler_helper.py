@@ -2,6 +2,7 @@
 Helper functions to help creating the training examples
 with the UI
 """
+import math
 import os
 import glob
 import PIL
@@ -64,11 +65,6 @@ def cut_one_image(filename):
             900, crop_lower
         ))
         cropped_line.save(OUTPUT_DIR + clean_filename + "_L{}.png".format(line_id))
-
-
-for f in imgfiles:
-    cut_one_image(f)
-
 
 
 def convert_img_to_black_and_white(image):
@@ -143,6 +139,51 @@ def word_pos_finder(image, underline_in_img=False):
     else:
         return found_words_xmin_xmax
 
+def locate_words(image, text_typed_in):
+    words_entered = text_typed_in.split(" ")
+    words_xmin_xmax_list = word_pos_finder(
+        image
+    )
+    if len(words_xmin_xmax_list) != len(words_entered):
+        print("WARNING")
+        print(f"Num of words typed in: {len(words_entered)}")
+        print(f"Num of words found in image: {len(words_xmin_xmax_list)}")
+        return None
+    else:
+        return zip(words_entered, words_xmin_xmax_list)
+
+def locate_chars(image, text_entered):
+    # at first let's find the words
+    list_words_with_pos = locate_words(image, text_entered)
+    
+    # we'll collect tthe result here: each element in hte list will be a
+    # pair (tuple) consisting of a character and a min-x-position
+    # for example ('z', 123)
+    all_char_xmin_list = []
+    if list_words_with_pos:
+        for word, pos in list_words_with_pos:
+            print(f"word: {word}, positions: {pos}")
+            chars_and_x_coords = locate_chars_in_word_apprx(
+                word, pos[0], pos[1]
+            )
+            all_char_xmin_list = all_char_xmin_list + chars_and_x_coords
+        return all_char_xmin_list
+    else:
+        return None
+
+
+def locate_chars_in_word_apprx(word_str, x_min, x_max):
+    num_chars = len(word_str)
+    word_width = x_max - x_min + 1
+    avg_char_width = word_width / num_chars
+    # the result will be tuples of (char, int) : the letter and the x-position 
+    res = []
+    for i, char in enumerate(word_str):
+        res.append((char, x_min + math.floor(i * avg_char_width)))
+    print(res)
+    return res    
+
+
 
 def test_word_pos_finder():
     img = Image.open("../test_data/20191004-211826_L7.png")
@@ -150,4 +191,7 @@ def test_word_pos_finder():
     img_w_words.show()
 
 if __name__ == "__main__":
+    # for f in imgfiles:
+    #    cut_one_image(f)
+
     test_word_pos_finder()
