@@ -4,7 +4,7 @@ from tkinter import *
 from tkinter import messagebox
 from PIL import Image, ImageDraw, ImageTk
 
-from labeler_helper import locate_chars
+from labeler_helper import locate_chars, locate_words
 
 
 # create the main window
@@ -12,8 +12,6 @@ root = Tk()
 root.title("Gimme Labels!")	
 root.geometry("930x300")
 
-
-CHAR_WIDTH = 14
 
 class MyMenu:
     def __init__(self, root_element):
@@ -43,7 +41,14 @@ class Labeler:
     def __init__(self, root_element):
         self.frame = Frame(root_element)
         # TODO image path should come from clicking "Open" menu item
-        in_img_file_path = "../line_img/20191004-211826_L9.png"
+        # for a drepe turgleden. Soveposen er apenbart viktig
+        # in_img_file_path = "../line_img/20191004-211826_L9.png"
+        # Nar du hutrer deg gjennom natten pa tur, er det lett
+        # in_img_file_path = "../line_img/20191004-211826_L4.png"
+        # for nattesovnen, der den utgjor en isolerende barriere
+        # in_img_file_path = "../line_img/20191004-211826_L10.png"
+        # mot den kalde natteluften. Men det er i stor grad
+        in_img_file_path = "../line_img/20191004-211826_L11.png"
         # we need a PIL image object for char detection
         self.line_img = Image.open(in_img_file_path)
         # and a PhotoImage object to show on GUI
@@ -68,22 +73,34 @@ class Labeler:
         self.cnt_label.pack()
 
         self.frame.pack()
+        self.text_entered = None
+        self.word_locations = None
+        self.char_locations = None
+        self.chars_auto_detected = False
 
     def clickhandler(self, event):
         click_x = event.x
         click_y = event.y
         print("click was at {} {}".format(click_x, click_y))
-
+        if self.chars_auto_detected:
+            for word, pos in self.word_locations:
+                w_xmin = pos[0]
+                w_xmax = pos[1]
+                if click_x >= w_xmin and click_x <= w_xmax:
+                    print(f"word: '{word}' clicked")
+ 
     def keyhandler(self, event):
         self.counter += 1
         self.cnt_label.config(
-            text="Saved train examples: {}".format(self.counter)
+            text="Num of clicked keys: {}".format(self.counter)
         )
 
     def auto_locate_chars(self):
         text_entered = self.entry.get().strip()
+        self.text_entered = text_entered
         image = self.line_img
-        # a list of tuples: (character, x_pos) ias (char, int)
+        self.word_locations = locate_words(image, text_entered)
+        # a list of tuples: (character, x_pos) as (char, int)
         char_locations = locate_chars(image, text_entered)
         if not char_locations:
             mgbox = messagebox.showinfo(
@@ -98,13 +115,15 @@ class Labeler:
             for char_loc in char_locations:
                 draw.rectangle(
                     [char_loc[1] - 2, 1 + random.randint(1, 8),  # x0 y0
-                    char_loc[1] + CHAR_WIDTH, 39 - random.randint(1, 8)],  #  x1 y1
+                    char_loc[2] + 2, 39 - random.randint(1, 8)],  #  x1 y1
                 )
 
             # then update the PhotoImage object on hte shwn label:
             self.ph_img = ImageTk.PhotoImage(self.line_img)
             self.img_label.configure(image=self.ph_img)
             self.img_label.image = self.ph_img
+            self.char_locations = char_locations
+            self.chars_auto_detected = True
 
 
 my_menu = MyMenu(root)

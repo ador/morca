@@ -17,7 +17,7 @@ IMG_WIDTH = 900
 # at the top or bottom 
 NOISE_PX_TOP = 12
 NOISE_PX_BOTTOM = 6
-WORD_GAP_MIN = 15
+WORD_GAP_MIN = 12
 
 
 INPUT_DIR = "../preproc_img/"
@@ -140,6 +140,9 @@ def word_pos_finder(image, underline_in_img=False):
         return found_words_xmin_xmax
 
 def locate_words(image, text_typed_in):
+    if not text_typed_in:
+        print("WARNING")
+        print("Please type in the text")
     words_entered = text_typed_in.split(" ")
     words_xmin_xmax_list = word_pos_finder(
         image
@@ -150,39 +153,111 @@ def locate_words(image, text_typed_in):
         print(f"Num of words found in image: {len(words_xmin_xmax_list)}")
         return None
     else:
-        return zip(words_entered, words_xmin_xmax_list)
+        return list(zip(words_entered, words_xmin_xmax_list))
 
 def locate_chars(image, text_entered):
     # at first let's find the words
     list_words_with_pos = locate_words(image, text_entered)
     
-    # we'll collect tthe result here: each element in hte list will be a
-    # pair (tuple) consisting of a character and a min-x-position
-    # for example ('z', 123)
+    # we'll collect the result here: each element in the list will be a
+    # pair (tuple) consisting of a character and a min-x-position and
+    # a max-x-position
+    # for example ('z', 123, 155)
     all_char_xmin_list = []
     if list_words_with_pos:
         for word, pos in list_words_with_pos:
-            print(f"word: {word}, positions: {pos}")
-            chars_and_x_coords = locate_chars_in_word_apprx(
+            print(f"word: '{word}'  xmin/xmax positions: {pos}")
+            # chars_and_x_coords = locate_chars_in_word_apprx(
+            chars_and_x_coords = locate_chars_in_word_smarter(
                 word, pos[0], pos[1]
             )
+            print("smart found:")
+            print(chars_and_x_coords)
             all_char_xmin_list = all_char_xmin_list + chars_and_x_coords
         return all_char_xmin_list
     else:
         return None
 
 
-def locate_chars_in_word_apprx(word_str, x_min, x_max):
-    num_chars = len(word_str)
-    word_width = x_max - x_min + 1
-    avg_char_width = word_width / num_chars
-    # the result will be tuples of (char, int) : the letter and the x-position 
-    res = []
-    for i, char in enumerate(word_str):
-        res.append((char, x_min + math.floor(i * avg_char_width)))
-    print(res)
-    return res    
+def count_chars_in_word(word_str, char_list):
+    counter = 0
+    for char in word_str:
+        if char in char_list:
+            counter += 1
+    return counter
 
+
+extra_thin_chars = [',', '.', '!', ':', ';']
+extra_thin_ratio = 0.25
+thin_chars = ['i', 'j', 'l', 'I', 't']
+thin_ratio = 0.55
+slightly_thin_chars = ['f']
+slightly_thin_ratio = 0.75
+wide_chars = [
+    'm', 'w',
+    'A', 'B', 'C', 'D', 'E', 'G', 'H', 'K', 'L', 'O', 'Q', 'R', 'S', 'X',
+    'Z'
+]
+wide_ratio = 1.35
+extra_wide_chars = ['W', 'M', 'N']
+extra_wide_ratio = 1.6
+all_special_width_chars = (
+    extra_thin_chars + thin_chars + slightly_thin_chars +
+    wide_chars + extra_wide_chars
+)
+
+
+def get_apprx_char_width(char, avg_normal_char_width):
+    if char in extra_thin_chars:
+        return avg_normal_char_width * extra_thin_ratio
+    if char in thin_chars:
+        return avg_normal_char_width * thin_ratio
+    if char in slightly_thin_chars:
+        return avg_normal_char_width * slightly_thin_ratio
+    if char in wide_chars:
+        return avg_normal_char_width * wide_ratio
+    if char in extra_wide_chars:
+        return avg_normal_char_width * extra_wide_ratio
+    return avg_normal_char_width
+
+
+def locate_chars_in_word_smarter(word_str, x_min, x_max):
+    # Adjusting estimated character boundaries by their expected widths. 
+    # Thinnest characters are: '.', ',', '!', 'j', 'i', 'l', somewhat 't', 'f'
+    # and 'r'
+    # Widest characters are: 'W', 'M', 'N', 'T', 'E', 'w', 'm'
+
+    num_chars = len(word_str)
+    # count how many we have in this word of the special width characters
+    num_extra_thin_chars = count_chars_in_word(word_str, extra_thin_chars)
+    num_thin_chars = count_chars_in_word(word_str, thin_chars)
+    num_slightly_thin_chars = count_chars_in_word(
+        word_str, slightly_thin_chars
+    )
+    num_wide_chars = count_chars_in_word(word_str, wide_chars)
+    num_extra_wide_chars = count_chars_in_word(word_str, extra_wide_chars)
+
+    # the rest are normal-width characters (ratio = 1.0)
+    num_normal_chars = num_chars - count_chars_in_word(
+        word_str, all_special_width_chars  
+    )
+    word_width = x_max - x_min + 1
+    avg_normal_char_width = 1.0 * word_width / (
+        num_normal_chars * 1.0 +
+        num_extra_thin_chars * extra_thin_ratio +
+        num_thin_chars * thin_ratio +
+        num_slightly_thin_chars * slightly_thin_ratio +
+        num_wide_chars * wide_ratio +
+        num_extra_wide_chars * extra_wide_ratio
+    )
+    # Finally we can assign x_min positions to each character
+    res = []
+    x_tracker = x_min
+    for char in word_str:
+        cw = get_apprx_char_width(char, avg_normal_char_width)
+        res.append((char, x_tracker, x_tracker + round(cw)))
+        x_tracker += round(cw)
+    return res
 
 
 def test_word_pos_finder():
